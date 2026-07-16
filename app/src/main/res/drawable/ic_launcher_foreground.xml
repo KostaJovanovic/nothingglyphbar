@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Glyph Bar itself: six white segments with a brightness ramp (the thing
+  this app actually controls), plus the red recording segment it deliberately
+  cannot. Adaptive icons crop to a 72dp safe zone inside the 108dp canvas, so
+  everything here stays within roughly x/y 30..78.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- A1 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="1.0"
+        android:pathData="M46,28 L62,28 A2,2 0 0,1 64,30 L64,36 A2,2 0 0,1 62,38 L46,38 A2,2 0 0,1 44,36 L44,30 A2,2 0 0,1 46,28 Z" />
+    <!-- A2 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.85"
+        android:pathData="M46,40 L62,40 A2,2 0 0,1 64,42 L64,48 A2,2 0 0,1 62,50 L46,50 A2,2 0 0,1 44,48 L44,42 A2,2 0 0,1 46,40 Z" />
+    <!-- A3 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.68"
+        android:pathData="M46,52 L62,52 A2,2 0 0,1 64,54 L64,60 A2,2 0 0,1 62,62 L46,62 A2,2 0 0,1 44,60 L44,54 A2,2 0 0,1 46,52 Z" />
+    <!-- A4 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.5"
+        android:pathData="M46,64 L62,64 A2,2 0 0,1 64,66 L64,72 A2,2 0 0,1 62,74 L46,74 A2,2 0 0,1 44,72 L44,66 A2,2 0 0,1 46,64 Z" />
+    <!-- A5 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.32"
+        android:pathData="M46,76 L62,76 A2,2 0 0,1 64,78 L64,84 A2,2 0 0,1 62,86 L46,86 A2,2 0 0,1 44,84 L44,78 A2,2 0 0,1 46,76 Z" />
+    <!-- A6 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.18"
+        android:pathData="M46,88 L62,88 A2,2 0 0,1 64,90 L64,96 A2,2 0 0,1 62,98 L46,98 A2,2 0 0,1 44,96 L44,90 A2,2 0 0,1 46,88 Z" />
+
+    <!-- The red recording indicator: present, but not ours to light. -->
+    <path
+        android:fillColor="#FF3B30"
+        android:fillAlpha="0.9"
+        android:pathData="M46,16 L62,16 A2,2 0 0,1 64,18 L64,24 A2,2 0 0,1 62,26 L46,26 A2,2 0 0,1 44,24 L44,18 A2,2 0 0,1 46,16 Z" />
+</vector>
