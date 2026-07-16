@@ -1,0 +1,21 @@
+# Provisioned by build.ps1 - large, reproducible, never commit
+.toolchain/
+local.properties
+
+# Build outputs
+build/
+app/build/
+.gradle/
+
+# APK published to the root by build.ps1 - a build artifact, don't commit it
+*.apk
+
+# Release signing key + its password. Never commit these, but do keep them:
+# a different key blocks upgrade-installs over an already-installed build.
+*.keystore
+keystore.properties
+
+# Android Studio
+.idea/
+*.iml
+captures/

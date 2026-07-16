@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="com.nothing.ketchum.permission.ENABLE" />
+
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.GlyphBar">
+
+        <!-- Nothing GDK API key. "test" is accepted for local development/debugging.
+             For a Play Store release, request a real key from Nothing's developer
+             programme. On Android 16+ the key is optional. -->
+        <meta-data
+            android:name="NothingKey"
+            android:value="test" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
