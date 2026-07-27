@@ -1,48 +1,61 @@
 package com.kosta.glyphbar
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import java.util.concurrent.locks.LockSupport
+import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
-import kotlin.math.sign
 
 /**
  * Persistence-of-vision text.
  *
- * The bar is a 6-pixel column; swing the phone and hold each column for a few
- * milliseconds, and your eye integrates the columns into letters hanging in
- * the air.
+ * The bar is a 6-pixel column; swing the phone and hold each column for a
+ * moment, and your eye integrates the columns into letters hanging in the air.
  *
- * The physical constraint: every column is one binder round-trip to the Glyph
- * service. Column width in the air = swing speed x column duration, so a slow
- * write path means fat letters. Hence benchmarkWriteRate() and the on-screen
- * measured Hz — the honest number, measured on the actual device, rather than
- * a figure I'd be guessing at.
+ * The key idea (Option A): columns are stepped by *position*, not by a timer.
+ * The gyroscope's angular rate is integrated into a sweep angle, and we advance
+ * one text column for every [radPerColumn] of that angle. So a letter occupies a
+ * fixed slice of the swing arc — it comes out the same width whether you flick
+ * fast or wave slow — and the swing direction picks whether the columns are
+ * painted forwards or reversed, which keeps the message anchored in space and
+ * readable on both the out- and back-strokes.
+ *
+ * The physical ceiling is unchanged: every column is one binder round-trip to
+ * the Glyph service. Swing faster than the measured write rate and columns are
+ * simply skipped (the text goes gappy) rather than lagging behind — see
+ * benchmarkWriteRate() and the on-screen measured Hz.
  */
 class PovController(
     private val glyph: GlyphController,
     private val motion: MotionDetector,
-    private val scope: CoroutineScope,
 ) {
 
     enum class Mode {
-        /** Fire one pass each time a swing is detected. Direction-aware. */
+        /** Paint from real motion: position-stepped, direction-aware. */
         Swing,
 
-        /** Loop the message continuously, ignoring the sensors. */
+        /** Loop the message on a timer, ignoring the sensors. */
         Continuous,
     }
 
-    /** Per-column hold time, microseconds. 3000us = 3ms. */
+    /** Radians of sweep per text column. Smaller = tighter text that needs only
+     *  a small flick; larger = spread wide across a big swing. */
+    var radPerColumn: Float = 0.02f
+
+    /** Per-column hold time for the no-sensor Continuous mode, microseconds. */
     var columnUs: Long = 3000
 
-    /** Swing trigger threshold in the sensor's units. */
+    /** Minimum |rate| that counts as a swing, in the sensor's units. */
     var threshold: Float = motion.defaultThreshold()
 
     var mode: Mode = Mode.Swing
 
-    /** Mirror alternate passes so text reads forwards on the return stroke. */
+    /** Paint on the return stroke too, not just the forward one. */
     var bidirectional: Boolean = true
+
+    /** Flip which swing direction paints forwards — gyro sign convention varies
+     *  by device, so if the message reads mirrored/backwards, toggle this. */
+    var invert: Boolean = false
 
     fun start(text: String, level: Int) {
         val columns = PovFont.frames(text, level)
@@ -52,44 +65,76 @@ class PovController(
         glyph.startPov("POV · $text") {
             when (mode) {
                 Mode.Continuous -> runContinuous(columns)
-                Mode.Swing -> runSwing(columns)
+                Mode.Swing -> runWand(columns)
             }
         }
     }
 
     private suspend fun runContinuous(columns: List<Frame>) {
-        while (currentScopeActive()) {
+        while (coroutineContext.isActive) {
             glyph.povSweep(columns, columnUs, reversed = false)
             delay(120)
         }
     }
 
     /**
-     * Wait for the phone to be moving fast, then paint one pass.
+     * Position-based POV.
      *
-     * After a pass we wait for the swing to decay below half-threshold before
-     * re-arming, otherwise a single wave fires several overlapping passes and
-     * the text smears.
+     * Idle until a swing crosses [threshold], then anchor the sweep angle at
+     * zero and paint whichever column the accumulated angle currently maps to.
+     * Column order is chosen from the stroke's direction so col 0 always lands
+     * on the same side of the arc — that's what keeps the text spatially stable
+     * across the out- and back-strokes. A stroke ends when it slows past the
+     * turnaround (or reverses), and the bar blanks so passes don't smear.
      */
-    private suspend fun runSwing(columns: List<Frame>) {
-        var armed = true
-        while (currentScopeActive()) {
-            val rate = motion.rate
-            val speed = abs(rate)
+    private suspend fun runWand(columns: List<Frame>) {
+        val n = columns.size
+        var painting = false
+        var forward = true      // does this stroke paint columns 0..n-1?
+        var lastIdx = -1
 
-            if (armed && speed >= threshold) {
-                val backward = bidirectional && rate.sign < 0
-                glyph.povSweep(columns, columnUs, reversed = backward)
-                armed = false
-            } else if (!armed && speed < threshold * 0.5f) {
-                armed = true
+        while (coroutineContext.isActive) {
+            val signed = if (invert) -motion.rate else motion.rate
+            val speed = abs(signed)
+
+            if (!painting) {
+                if (speed >= threshold) {
+                    forward = signed >= 0f
+                    if (bidirectional || forward) {
+                        painting = true
+                        lastIdx = -1
+                        motion.resetAngle()
+                    }
+                }
+            } else {
+                val reversed = (signed >= 0f) != forward
+                if (speed < threshold * 0.35f || reversed) {
+                    // Slowed at the turnaround, or flipped direction: stroke done.
+                    painting = false
+                    lastIdx = -1
+                    glyph.povBlank()
+                } else {
+                    val idx = (abs(motion.angle) / radPerColumn).toInt()
+                    when {
+                        idx >= n -> if (lastIdx != n) {
+                            // Whole message swept past; hold blank until it ends.
+                            glyph.povBlank()
+                            lastIdx = n
+                        }
+                        idx != lastIdx -> {
+                            val col = if (forward) idx else n - 1 - idx
+                            glyph.povColumn(columns[col])
+                            lastIdx = idx
+                        }
+                    }
+                }
             }
-            // Poll fast: late detection shows up as the message drifting.
-            delay(2)
+            // Poll far faster than the bar can repaint; sub-ms so a fast stroke
+            // never overshoots a column before we notice.
+            LockSupport.parkNanos(250_000L)
         }
+        glyph.povBlank()
     }
-
-    private fun currentScopeActive(): Boolean = scope.isActive
 
     fun stop() {
         motion.stop()

@@ -248,6 +248,17 @@ class GlyphController(private val context: Context, private val scope: Coroutine
         false
     }
 
+    /** Paint one POV column on the fast path — no brightness, no bookkeeping. */
+    fun povColumn(f: Frame): Boolean {
+        val gm = manager?.takeIf { sessionOpen } ?: return false
+        return pushRaw(gm, f)
+    }
+
+    /** Blank the bar on the fast path, e.g. between passes. */
+    fun povBlank() {
+        manager?.takeIf { sessionOpen }?.let { pushRaw(it, emptyFrame()) }
+    }
+
     /**
      * Blast one POV pass: each column held for columnUs microseconds.
      *

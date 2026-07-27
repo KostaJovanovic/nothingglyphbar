@@ -517,7 +517,7 @@ private fun SoundTab(vm: GlyphViewModel, enabled: Boolean) {
         granted = ok
         val mode = pending
         pending = null
-        if (ok && mode != null) vm.startAudio(mode) else if (!ok) vm.clearAudioError()
+        if (ok && mode != null) vm.startMic(mode) else if (!ok) vm.clearAudioError()
     }
 
     Column(
@@ -763,6 +763,8 @@ private fun PovTab(vm: GlyphViewModel, enabled: Boolean) {
     val hz by vm.glyph.writeHz.collectAsStateWithLifecycle()
     var text by rememberSaveable { mutableStateOf("HELLO") }
     var columnUs by rememberSaveable { mutableStateOf(3000f) }
+    var radPerColumn by rememberSaveable { mutableStateOf(0.02f) }
+    var invert by rememberSaveable { mutableStateOf(false) }
     var swing by rememberSaveable { mutableStateOf(true) }
     var threshold by rememberSaveable { mutableStateOf(vm.motion.defaultThreshold()) }
 
@@ -820,22 +822,6 @@ private fun PovTab(vm: GlyphViewModel, enabled: Boolean) {
             }
         }
 
-        SectionLabel("Column time · ${columnUs.roundToInt()}µs")
-        Slider(
-            value = columnUs,
-            onValueChange = { columnUs = it },
-            valueRange = 500f..12000f,
-            enabled = enabled,
-        )
-        Text(
-            "Lower = narrower letters, but the hardware can only go so fast. " +
-                if (hz > 0) "Measured: ${hz.roundToInt()} writes/sec (${(1000f / hz).let { "%.1f".format(it) }}ms each)."
-                else "Run the benchmark to find this phone's real limit.",
-            color = Faint,
-            fontSize = 9.sp,
-            lineHeight = 13.sp,
-        )
-
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             val on = swing
             Box(
@@ -859,6 +845,24 @@ private fun PovTab(vm: GlyphViewModel, enabled: Boolean) {
         }
 
         if (swing) {
+            SectionLabel("Text width · ${"%.3f".format(radPerColumn)} rad/col")
+            Slider(
+                value = radPerColumn,
+                onValueChange = { radPerColumn = it },
+                valueRange = 0.005f..0.06f,
+                enabled = enabled,
+            )
+            Text(
+                "How much you sweep per letter-column. Lower = tighter text that needs " +
+                    "only a small flick; higher = spread wide across a big swing. Letters " +
+                    "stay the same width whether you swing fast or slow — that's the point. " +
+                    if (hz > 0) "The bar can repaint about ${hz.roundToInt()}×/sec; swing faster than that and columns drop."
+                    else "Run BENCH to see how fast this phone can repaint.",
+                color = Faint,
+                fontSize = 9.sp,
+                lineHeight = 13.sp,
+            )
+
             SectionLabel("Swing trigger · ${"%.1f".format(threshold)} ${vm.motion.unit}")
             Slider(
                 value = threshold,
@@ -866,20 +870,63 @@ private fun PovTab(vm: GlyphViewModel, enabled: Boolean) {
                 valueRange = 1f..15f,
                 enabled = enabled,
             )
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Panel)
+                    .clickable { invert = !invert }
+                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Flip direction", color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                Text(
+                    if (invert) "ON" else "OFF",
+                    color = if (invert) Color(0xFF4CAF50) else Faint,
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+            Text(
+                "If the message comes out mirrored or reads backwards, flip this.",
+                color = Faint,
+                fontSize = 9.sp,
+            )
+
             if (!vm.motion.hasGyro) {
                 Text(
                     "No gyroscope on this device — falling back to the accelerometer, " +
-                        "which is noisier for this.",
+                        "which is noisier and driftier for this.",
                     color = Color(0xFFFFA726),
                     fontSize = 9.sp,
                 )
             }
+        } else {
+            SectionLabel("Column time · ${columnUs.roundToInt()}µs")
+            Slider(
+                value = columnUs,
+                onValueChange = { columnUs = it },
+                valueRange = 500f..12000f,
+                enabled = enabled,
+            )
+            Text(
+                "Auto-scroll speed for continuous mode. " +
+                    if (hz > 0) "Measured: ${hz.roundToInt()} writes/sec (${(1000f / hz).let { "%.1f".format(it) }}ms each)."
+                    else "Run the benchmark to find this phone's real limit.",
+                color = Faint,
+                fontSize = 9.sp,
+                lineHeight = 13.sp,
+            )
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Mini("▶ START", enabled && text.isNotBlank(), Modifier.weight(1f)) {
                 vm.pov.columnUs = columnUs.roundToInt().toLong()
+                vm.pov.radPerColumn = radPerColumn
                 vm.pov.threshold = threshold
+                vm.pov.invert = invert
                 vm.pov.mode = if (swing) PovController.Mode.Swing else PovController.Mode.Continuous
                 vm.pov.start(text, MAX_LIGHT)
             }
@@ -894,10 +941,10 @@ private fun PovTab(vm: GlyphViewModel, enabled: Boolean) {
         playing?.let { Text("Running: $it", color = Color(0xFF4CAF50), fontSize = 10.sp) }
 
         Text(
-            "Honest caveat: every column is a round-trip to the Glyph service, so how " +
-                "narrow the letters get is set by that, not by the slider. BENCH measures " +
-                "it on your actual phone. If letters look stretched, swing slower or drop " +
-                "the column time.",
+            "Honest caveat: every column is a round-trip to the Glyph service, so there's " +
+                "a hard limit on how fast columns can repaint. BENCH measures it on your " +
+                "actual phone. Swing faster than that rate and columns simply drop — the " +
+                "text goes gappy rather than lagging behind.",
             color = Faint,
             fontSize = 9.sp,
             lineHeight = 13.sp,

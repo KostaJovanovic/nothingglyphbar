@@ -22,7 +22,7 @@ class GlyphViewModel(app: Application) : AndroidViewModel(app) {
     val glyph = GlyphController(app.applicationContext, viewModelScope)
     val audio = AudioReactive()
     val motion = MotionDetector(app.applicationContext)
-    val pov = PovController(glyph, motion, viewModelScope)
+    val pov = PovController(glyph, motion)
     private val store = AnimationStore(app.applicationContext)
 
     private val _custom = MutableStateFlow(store.load())

@@ -33,7 +33,16 @@ class MotionDetector(context: Context) {
     @Volatile var peak: Float = 0f
         private set
 
+    /**
+     * Running integral of [rate] since the last [resetAngle], in radians (on the
+     * gyro path). POV steps one text column per fixed slice of this, so letters
+     * keep a constant width in the air no matter how fast the phone is swung.
+     */
+    @Volatile var angle: Float = 0f
+        private set
+
     private var usingGyro = false
+    private var lastNs: Long = 0L
 
     private val listener = object : SensorEventListener {
         override fun onSensorChanged(e: SensorEvent) {
@@ -46,6 +55,17 @@ class MotionDetector(context: Context) {
             rate = rate * 0.35f + v * 0.65f
             val a = abs(rate)
             peak = if (a > peak) a else peak * 0.995f
+
+            // Integrate rate into a sweep angle using the sensor's own timestamps,
+            // so it stays accurate however often POV happens to poll it. (On the
+            // accel fallback this is a velocity-like proxy, not a true angle —
+            // enough to keep that path usable, not precise.)
+            val ts = e.timestamp
+            if (lastNs != 0L) {
+                val dt = (ts - lastNs) / 1_000_000_000f
+                if (dt > 0f && dt < 0.1f) angle += rate * dt
+            }
+            lastNs = ts
         }
 
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
@@ -58,10 +78,18 @@ class MotionDetector(context: Context) {
         return manager.registerListener(listener, s, SensorManager.SENSOR_DELAY_FASTEST)
     }
 
+    /** Zero the sweep angle. Called at the start of each swing so every pass
+     *  measures column position from where that swing began. */
+    fun resetAngle() {
+        angle = 0f
+    }
+
     fun stop() {
         manager.unregisterListener(listener)
         rate = 0f
         peak = 0f
+        angle = 0f
+        lastNs = 0L
     }
 
     /** Default trigger threshold in the active sensor's units. */
