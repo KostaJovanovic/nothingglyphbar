@@ -11,7 +11,7 @@ directly.**
 - `save.bat quick "message"` stages everything, commits, and pushes the current
   branch to its upstream, with no menu or prompts. `save.bat quick-commit
   "message"` does the same without pushing.
-- From Git Bash: `./save.bat quick "message"` (not `cmd //c "save.bat quick \"message\""`, which mangles the quotes into the message); from PowerShell: `.\save.bat quick "message"`.
+- Run it from PowerShell: `.\save.bat quick "message"`. Not from Git Bash, which cannot start a .bat from a path with spaces and puts its Unix `find` ahead of the Windows one the script uses.
 - Both exit non-zero on failure. They never fetch, merge, or force-push; if a
   push is rejected, stop and tell the user instead of working around it.
 - Plain `save.bat` (menu) and `save.bat save|commit|push|pull` are the user's
